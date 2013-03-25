@@ -162,8 +162,9 @@ static struct gpio_event_matrix_info doubleshot_keypad_matrix_info = {
 	.input_gpios = doubleshot_pmic_col_gpios,
 	.noutputs = KEYMAP_NUM_ROWS,
 	.ninputs = KEYMAP_NUM_COLS,
-	.settle_time.tv_nsec = 40 * NSEC_PER_USEC,
+	.settle_time.tv_nsec = 4 * NSEC_PER_USEC,
 	.poll_time.tv_nsec = 20 * NSEC_PER_MSEC,
+        .debounce_delay.tv_nsec = 1 * NSEC_PER_MSEC,
 	.setup_matrix_gpio = doubleshot_setup_matrix_gpio,
 	.flags = GPIOKPF_LEVEL_TRIGGERED_IRQ | GPIOKPF_REMOVE_PHANTOM_KEYS | GPIOKPF_PRINT_UNMAPPED_KEYS /*| GPIOKPF_PRINT_MAPPED_KEYS*/
 };

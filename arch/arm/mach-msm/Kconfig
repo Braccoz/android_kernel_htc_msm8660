@@ -1829,6 +1829,21 @@ config SURF_FFA_GPIO_KEYPAD
 	help
 	  Select if the GPIO keypad is attached.
 
+config DOUBLESHOT_KEYBOARDUSETIMERS
+	bool "Force DOUBLESHOT keyboard gpio to work with timers"
+        depends on MACH_DOUBLESHOT = "y"
+        default n
+	help
+	  Forces the GPIO MATRIX driver of DOUBLESHOT's keyboard to use
+	  timers instead of work queue to reduce cpu utilization.
+
+config DOUBLESHOT_DEBOUNCETIME
+	int "DOUBLESHOT keyboard debounce time window"
+        depends on MACH_DOUBLESHOT = "y"
+        default 0
+	help
+	  Minimum time window (in jiffies) to allow for a double keypress.
+
 config MSM_SLEEP_TIME_OVERRIDE
 	bool "Allow overriding suspend/sleep time with PM module parameter"
 	default y

@@ -16,9 +16,10 @@
 #include <linux/kernel.h>
 #include <linux/gpio.h>
 #include <linux/gpio_event.h>
-#ifndef CONFIG_MACH_DOUBLESHOT
+#if !defined (CONFIG_MACH_DOUBLESHOT) || defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 #include <linux/hrtimer.h>
-#else
+#endif
+#if defined (CONFIG_DOUBLESHOT_DEBOUNCETIME)
 #include <linux/jiffies.h>
 #endif
 #include <linux/interrupt.h>
@@ -31,9 +32,10 @@
 #include <linux/curcial_oj.h>
 #endif
 
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 static struct workqueue_struct *km_queue;
-
+#endif
+#if defined (CONFIG_MACH_DOUBLESHOT)
 static int kp_use_irq = 0;
 int get_kp_irq_mode(void)
 {
@@ -46,7 +48,7 @@ struct gpio_kp {
 	int debug_log;
 	struct gpio_event_input_devs *input_devs;
 	struct gpio_event_matrix_info *keypad_info;
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 	struct work_struct work;
 #else
 	struct hrtimer timer;
@@ -132,11 +134,11 @@ static void remove_phantom_keys(struct gpio_kp *kp)
 	}
 }
 
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if CONFIG_DOUBLESHOT_DEBOUNCETIME > 0
 static unsigned short last_pressed = 0;
 static int press_time_init = 0;
 static unsigned long last_pressed_time;
-static unsigned long BETWEEN_PRESS_MIN_DIFF = 20;
+static unsigned long BETWEEN_PRESS_MIN_DIFF = CONFIG_DOUBLESHOT_DEBOUNCETIME;
 #endif
 
 static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
@@ -168,7 +170,7 @@ static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 			if (!mi->info.oj_btn || keycode != BTN_MOUSE) {
 #endif
 				report = 1;
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if CONFIG_DOUBLESHOT_DEBOUNCETIME > 0
 				// fix for the all too often happening accidental key press repetitions
 				if (pressed)
 				{
@@ -197,9 +199,10 @@ static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 #endif
 				if (report) {
 					input_report_key(kp->input_devs->dev[dev], keycode, pressed);
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 					input_sync(kp->input_devs->dev[dev]);
 #endif
+
 				}
 #ifdef CONFIG_OPTICALJOYSTICK_CRUCIAL
 			}
@@ -218,7 +221,7 @@ static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 #endif
 }
 
-#ifndef CONFIG_MACH_DOUBLESHOT
+#if !defined (CONFIG_MACH_DOUBLESHOT) || defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 static void report_sync(struct gpio_kp *kp)
 {
 	int i;
@@ -235,7 +238,7 @@ static void gpio_keypad_timer_func(struct work_struct *work)
 	int out, in;
 	int key_index;
 	int gpio;
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 	struct gpio_kp *kp = container_of(work, struct gpio_kp, work);
 #else
 	struct gpio_kp *kp = container_of(timer, struct gpio_kp, timer);
@@ -277,7 +280,7 @@ static void gpio_keypad_timer_func(struct work_struct *work)
 			gpio_set_value(gpio, polarity);
 		else
 			gpio_direction_output(gpio, polarity);
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		queue_work(km_queue, &kp->work);
 		return;
 #else
@@ -288,7 +291,7 @@ static void gpio_keypad_timer_func(struct work_struct *work)
 	}
 	if (gpio_keypad_flags & GPIOKPF_DEBOUNCE) {
 		if (kp->key_state_changed) {
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 			queue_work(km_queue, &kp->work);
 			return;
 #else
@@ -307,12 +310,12 @@ static void gpio_keypad_timer_func(struct work_struct *work)
 		for (out = 0; out < mi->noutputs; out++)
 			for (in = 0; in < mi->ninputs; in++, key_index++)
 				report_key(kp, key_index, out, in);
-#ifndef CONFIG_MACH_DOUBLESHOT
+#if !defined (CONFIG_MACH_DOUBLESHOT) || defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		report_sync(kp);
 #endif
 	}
 	if (!kp->use_irq || kp->some_keys_pressed) {
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		queue_work(km_queue, &kp->work);
 		return;
 #else
@@ -332,7 +335,7 @@ static void gpio_keypad_timer_func(struct work_struct *work)
 	for (in = 0; in < mi->ninputs; in++)
 		enable_irq(gpio_to_irq(mi->input_gpios[in]));
 	wake_unlock(&kp->wake_lock);
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 	return;
 #else
 	return HRTIMER_NORESTART;
@@ -363,7 +366,7 @@ static irqreturn_t gpio_keypad_irq_handler(int irq_in, void *dev_id)
 			gpio_direction_input(mi->output_gpios[i]);
 	}
 	wake_lock(&kp->wake_lock);
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 	queue_work(km_queue, &kp->work);
 #else
 	hrtimer_start(&kp->timer, ktime_set(0, 0), HRTIMER_MODE_REL);
@@ -398,7 +401,7 @@ static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 		err = irq = gpio_to_irq(mi->input_gpios[i]);
 		if (err < 0)
 			goto err_gpio_get_irq_num_failed;
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		/* TODO: does this need to be different from below? */
 		err = request_any_context_irq(irq, gpio_keypad_irq_handler, request_flags,
 				  "gpio_kp", kp);
@@ -445,7 +448,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 	int i;
 	int err;
 	int key_count;
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 	static int irq_status = 1;
 	int phone_call_status;
 	int fm_radio_status;
@@ -456,7 +459,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 	mi = container_of(info, struct gpio_event_matrix_info, info);
 	if (func == GPIO_EVENT_FUNC_SUSPEND || func == GPIO_EVENT_FUNC_RESUME) {
 		/* TODO: disable scanning */
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		if (mi->detect_phone_status == 0) {
 			if (func == GPIO_EVENT_FUNC_SUSPEND)
 				irq_status = 0;
@@ -521,7 +524,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 				input_set_capability(input_devs->dev[dev],
 							EV_KEY, keycode);
 		}
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		/* some kind of compat? */
 		if (mi->setup_matrix_gpio)
 			mi->setup_matrix_gpio();
@@ -572,7 +575,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 		kp->current_output = mi->noutputs;
 		kp->key_state_changed = 1;
 
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		km_queue = create_singlethread_workqueue("km_queue");
 		INIT_WORK(&kp->work, gpio_keypad_timer_func);
 #else
@@ -590,7 +593,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 
 		if (kp->use_irq)
 			wake_lock(&kp->wake_lock);
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 		queue_work(km_queue, &kp->work);
 #else
 		hrtimer_start(&kp->timer, ktime_set(0, 0), HRTIMER_MODE_REL);
@@ -606,7 +609,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 		for (i = mi->noutputs - 1; i >= 0; i--)
 			free_irq(gpio_to_irq(mi->input_gpios[i]), kp);
 
-#ifdef CONFIG_MACH_DOUBLESHOT
+#if defined (CONFIG_MACH_DOUBLESHOT) && !defined (CONFIG_DOUBLESHOT_KEYBOARDUSETIMERS)
 	cancel_work_sync(&kp->work);
 #else
 	hrtimer_cancel(&kp->timer);
