@@ -479,6 +479,7 @@ static int __init msm_thermal_init(void)
 	} else
 		pr_warn("msm_thermal: sysfs: ERROR, could not create sysfs kobj");
 
+        pr_info("Starting msm_thermal monitor: thresholds %u° %u° %u°\n",DEF_ALLOWED_LOW_HIGH, DEF_ALLOWED_MID_HIGH, DEF_ALLOWED_MAX_HIGH );
 	return ret;
 }
 fs_initcall(msm_thermal_init);
