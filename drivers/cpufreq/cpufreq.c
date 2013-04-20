@@ -33,6 +33,7 @@
 
 #include <trace/events/power.h>
 
+
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
@@ -1722,7 +1723,7 @@ error_out:
  *	at different times.
  */
 int cpufreq_update_policy(unsigned int cpu)
-{
+{          
 	struct cpufreq_policy *data = cpufreq_cpu_get(cpu);
 	struct cpufreq_policy policy;
 	int ret;
